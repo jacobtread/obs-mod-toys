@@ -143,6 +143,7 @@ async fn handle_socket_broadcast(
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum WebsocketServerMessage {
     // User is authenticated
     Authenticated,
@@ -150,24 +151,28 @@ pub enum WebsocketServerMessage {
     Error { message: String },
 
     // Server reporting an action to a client
-    ServerActionReported(ObjectServerAction),
+    ServerActionReported { action: ObjectServerAction },
 
     // Server reporting entire collection of objects and
     // their current state
-    Objects(Vec<DefinedObjectWithId>),
+    Objects { objects: Vec<DefinedObjectWithId> },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum WebsocketClientMessage {
     Authenticate { username: String, password: String },
     // Report an action to the server
-    ServerAction(ObjectServerAction),
+    ServerAction { action: ObjectServerAction },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum ObjectServerAction {
     // Create a new object
     CreateObject {
+        // ID of the object to create
+        id: Uuid,
         object: Object,
         initial_position: Position,
     },
@@ -190,7 +195,7 @@ pub enum ObjectServerAction {
     ClearObjects,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum BroadcastMessage {
     // Reporting an action that occurred
     ServerActionReported {
@@ -277,13 +282,12 @@ impl ObjectServer {
     pub fn handle_server_action(&mut self, session_id: Uuid, action: ObjectServerAction) {
         match &action {
             ObjectServerAction::CreateObject {
+                id,
                 object,
                 initial_position,
             } => {
-                let object_id = Uuid::new_v4();
-
                 self.object_store.objects.insert(
-                    object_id,
+                    *id,
                     DefinedObject {
                         object: object.clone(),
                         position: *initial_position,
@@ -327,6 +331,7 @@ impl ObjectStore {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum Object {
     // Text on the canvas
     Text(TextObject),
