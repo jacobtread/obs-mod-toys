@@ -180,10 +180,14 @@ pub enum ObjectServerAction {
         position: Position,
     },
 
+    // Remove a specific object
     RemoveObject {
         // ID of the object to remove
         id: Uuid,
     },
+
+    // Clear all objects
+    ClearObjects,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -293,6 +297,9 @@ impl ObjectServer {
             }
             ObjectServerAction::RemoveObject { id } => {
                 self.object_store.objects.remove(id);
+            }
+            ObjectServerAction::ClearObjects => {
+                self.object_store.objects.clear();
             }
         }
 
