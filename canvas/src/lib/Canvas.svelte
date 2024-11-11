@@ -29,7 +29,7 @@
 
 <FilePicker {onPickFile} />
 
-{#each canvasState.objects as localObject}
+{#each $canvasState.objects as localObject}
   {#if localObject.object.type == ObjectType.Image}
     <ImageObjectComponent {localObject} imageObject={localObject.object} />
   {:else}{/if}

@@ -109,10 +109,13 @@ async fn handle_socket_msg(
                 return Ok(());
             }
 
-            _ = object_server_handle.tx.send(ObjectServerMessage::Action {
-                session_id: socket_state.session_id,
-                action,
-            });
+            _ = object_server_handle
+                .tx
+                .send(ObjectServerMessage::Action {
+                    session_id: socket_state.session_id,
+                    action,
+                })
+                .await;
         }
     }
 

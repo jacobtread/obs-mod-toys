@@ -1,4 +1,5 @@
 import { tweened, type Tweened } from "svelte/motion";
+import { writable, type Writable } from "svelte/store";
 
 export type Uuid = string;
 
@@ -123,14 +124,14 @@ type CanvasState = {
   objects: LocalDefinedObject[];
 };
 
-export let canvasState: CanvasState = $state({
+export const canvasState: Writable<CanvasState> = writable({
   objects: [],
 });
 
-let socketStore = $state<WebSocket | null>(null);
+let socketStore: WebSocket | null = null;
 
 function createWebsocket(): WebSocket {
-  const socket = new WebSocket("http://localhost:3000");
+  const socket = new WebSocket("http://localhost:3000/ws");
   socket.onmessage = (ev: MessageEvent) => {
     handleSocketMessage(socket, ev);
   };
@@ -203,13 +204,15 @@ function handleServerError(msg: ServerMessageError) {
 }
 
 function handleObjects(msg: ServerMessageObjects) {
-  canvasState.objects = msg.objects.map((object) => ({
-    id: object.id,
-    localPosition: tweened(object.object.position),
-    object: object.object.object,
-    remotePosition: object.object.position,
+  canvasState.update((canvasState) => ({
+    ...canvasState,
+    objects: msg.objects.map((object) => ({
+      id: object.id,
+      localPosition: tweened(object.object.position),
+      object: object.object.object,
+      remotePosition: object.object.position,
+    })),
   }));
-  canvasState = canvasState;
 }
 
 function randomUUID(): string {
@@ -234,13 +237,18 @@ export function createObjectLocal(
   object: Object,
   initial_position: Position
 ) {
-  canvasState.objects.push({
-    id,
-    object,
-    remotePosition: initial_position,
-    localPosition: tweened(initial_position),
-  });
-  canvasState = canvasState;
+  canvasState.update((canvasState) => ({
+    ...canvasState,
+    objects: [
+      ...canvasState.objects,
+      {
+        id,
+        object,
+        remotePosition: initial_position,
+        localPosition: tweened(initial_position),
+      },
+    ],
+  }));
 }
 
 export function moveObject(data: ObjectServerActionMoveObject) {
@@ -254,14 +262,23 @@ export function moveObject(data: ObjectServerActionMoveObject) {
 }
 
 export function moveObjectLocal(data: ObjectServerActionMoveObject) {
-  const objectIndex = canvasState.objects.findIndex(
-    (object) => object.id == data.id
-  );
-  if (objectIndex === -1) return;
-
-  const object = canvasState.objects[objectIndex];
-  object.remotePosition = data.position;
-  object.localPosition.set(data.position);
+  canvasState.update((canvasState) => {
+    return {
+      ...canvasState,
+      objects: canvasState.objects.map((object) => {
+        if (object.id === data.id) {
+          object.localPosition.set(data.position);
+          return {
+            ...object,
+            remotePosition: data.position,
+            localPosition: object.localPosition,
+          };
+        } else {
+          return object;
+        }
+      }),
+    };
+  });
 }
 
 export function removeObject(data: ObjectServerActionRemoveObject) {
@@ -272,10 +289,10 @@ export function removeObject(data: ObjectServerActionRemoveObject) {
   removeObjectLocal(data);
 }
 export function removeObjectLocal(data: ObjectServerActionRemoveObject) {
-  canvasState.objects = canvasState.objects.filter(
-    (object) => object.id !== data.id
-  );
-  canvasState = canvasState;
+  canvasState.update((canvasState) => ({
+    ...canvasState,
+    objects: canvasState.objects.filter((object) => object.id !== data.id),
+  }));
 }
 
 export function clearObjects() {
@@ -286,8 +303,10 @@ export function clearObjects() {
 }
 
 export function clearObjectsLocal() {
-  canvasState.objects = [];
-  canvasState = canvasState;
+  canvasState.update((canvasState) => ({
+    ...canvasState,
+    objects: [],
+  }));
 }
 
 function handleSocketMessage(

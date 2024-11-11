@@ -6,7 +6,7 @@
     type LocalDefinedObject,
     type Position,
   } from "./canvas-store";
-  import { debounce } from "lodash";
+  import { throttle } from "lodash";
 
   type Props = {
     localObject: LocalDefinedObject;
@@ -17,22 +17,23 @@
 
   const localPosition = localObject.localPosition;
 
-  const { x: localX, y: localY } = $localPosition;
-
   const { width, height } = imageObject;
 
-  let isDragging = false;
+  let isDragging = $state(false);
   let offsetX = 0;
   let offsetY = 0;
 
-  let dragX = 0;
-  let dragY = 0;
+  let dragX = $state(0);
+  let dragY = $state(0);
 
-  const x = isDragging ? dragX : localX;
-  const y = isDragging ? dragY : localX;
+  const { x, y } = $derived(
+    isDragging
+      ? { x: dragX, y: dragY }
+      : { x: $localPosition.x, y: $localPosition.y }
+  );
 
   // Debounced function to update the position on the backend
-  const moveObjectDebounced = debounce(async () => {
+  const moveObjectDebounced = throttle(async () => {
     try {
       await moveObject({
         id: localObject.id,
@@ -41,10 +42,11 @@
     } catch (error) {
       console.error("failed to update position", error);
     }
-  }, 200);
+  }, 500);
 
   // Start dragging
   const startDrag = (event: MouseEvent) => {
+    event.preventDefault();
     isDragging = true;
     offsetX = event.clientX - x;
     offsetY = event.clientY - y;
@@ -57,7 +59,6 @@
     if (isDragging) {
       dragX = event.clientX - offsetX;
       dragY = event.clientY - offsetY;
-      // Call the debounced updatePosition function
       moveObjectDebounced();
     }
   };
@@ -70,15 +71,17 @@
     isDragging = false;
     document.removeEventListener("mousemove", onDrag);
     document.removeEventListener("mouseup", stopDrag);
-    // Optionally update the position after drag is complete
-    moveObjectDebounced.cancel(); // Cancel the debounced function if dragging stops
-    moveObjectDebounced(); // Send the final position update
+
+    moveObjectDebounced.cancel();
+    moveObjectDebounced();
   };
+
+  $effect(() => {});
 </script>
 
 <img
   src={imageObject.url}
   alt=""
-  style="position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px;"
+  style="cursor:pointer;position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px;"
   onmousedown={startDrag}
 />
