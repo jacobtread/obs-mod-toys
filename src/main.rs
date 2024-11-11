@@ -14,6 +14,7 @@ use tokio::{
     select,
     sync::{broadcast, mpsc},
 };
+use tower_http::cors::CorsLayer;
 use uuid::Uuid;
 
 #[tokio::main]
@@ -23,7 +24,8 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/ws", get(handler))
-        .layer(Extension(object_server_handle.clone()));
+        .layer(Extension(object_server_handle.clone()))
+        .layer(CorsLayer::very_permissive());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
@@ -353,8 +355,9 @@ pub struct TextObject {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageObject {
-    // base64 encoded image data
-    data: String,
+    url: String,
+    width: u32,
+    height: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
