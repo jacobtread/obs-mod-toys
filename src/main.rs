@@ -12,7 +12,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tokio::{
     select,
-    sync::{broadcast, mpsc},
+    sync::{broadcast, mpsc, oneshot},
 };
 use tower_http::cors::CorsLayer;
 use uuid::Uuid;
@@ -117,6 +117,16 @@ async fn handle_socket_msg(
                 })
                 .await;
         }
+        WebsocketClientMessage::RequestObjects => {
+            let (tx, rx) = oneshot::channel();
+            object_server_handle
+                .tx
+                .send(ObjectServerMessage::RequestObjects { tx })
+                .await?;
+            let objects = rx.await?;
+            let msg = serde_json::to_string(&WebsocketServerMessage::Objects { objects })?;
+            socket.send(ws::Message::Text(msg)).await?;
+        }
     }
 
     Ok(())
@@ -169,6 +179,9 @@ pub enum WebsocketClientMessage {
     Authenticate { username: String, password: String },
     // Report an action to the server
     ServerAction { action: ObjectServerAction },
+
+    // Request the list of objects
+    RequestObjects,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -213,7 +226,7 @@ pub enum BroadcastMessage {
     Objects(Vec<DefinedObjectWithId>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ObjectServerMessage {
     // Action from a client has been performed
     Action {
@@ -223,6 +236,11 @@ pub enum ObjectServerMessage {
 
     // Report the current list of objects to all clients
     ReportObjects,
+
+    // Request the list of objects
+    RequestObjects {
+        tx: oneshot::Sender<Vec<DefinedObjectWithId>>,
+    },
 }
 
 pub struct ObjectServer {
@@ -279,6 +297,10 @@ impl ObjectServer {
                     let objects = self.object_store.to_vec();
 
                     _ = self.tx.send(BroadcastMessage::Objects(objects));
+                }
+                ObjectServerMessage::RequestObjects { tx } => {
+                    let objects = self.object_store.to_vec();
+                    _ = tx.send(objects);
                 }
             }
         }
@@ -346,8 +368,8 @@ pub enum Object {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Position {
-    x: u32,
-    y: u32,
+    x: i32,
+    y: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

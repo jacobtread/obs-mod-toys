@@ -42,14 +42,16 @@
     } catch (error) {
       console.error("failed to update position", error);
     }
-  }, 500);
+  }, 100);
 
   // Start dragging
   const startDrag = (event: MouseEvent) => {
     event.preventDefault();
-    isDragging = true;
     offsetX = event.clientX - x;
     offsetY = event.clientY - y;
+
+    isDragging = true;
+
     document.addEventListener("mousemove", onDrag);
     document.addEventListener("mouseup", stopDrag);
   };

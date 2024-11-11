@@ -83,6 +83,7 @@ export type DefinedObjectWithId = {
 export enum ClientMessageType {
   Authenticate = "Authenticate",
   ServerAction = "ServerAction",
+  RequestObjects = "RequestObjects",
 }
 
 export type ClientMessageAuthenticate = {
@@ -98,7 +99,8 @@ export type ClientMessage =
   | ({
       type: ClientMessageType.ServerAction;
     } & ClientMessageServerAction)
-  | ({ type: ClientMessageType.Authenticate } & ClientMessageAuthenticate);
+  | ({ type: ClientMessageType.Authenticate } & ClientMessageAuthenticate)
+  | { type: ClientMessageType.RequestObjects };
 
 export enum ServerMessageType {
   Authenticated = "Authenticated",
@@ -131,7 +133,7 @@ export const canvasState: Writable<CanvasState> = writable({
 let socketStore: WebSocket | null = null;
 
 function createWebsocket(): WebSocket {
-  const socket = new WebSocket("http://localhost:3000/ws");
+  const socket = new WebSocket("ws://localhost:3000/ws");
   socket.onmessage = (ev: MessageEvent) => {
     handleSocketMessage(socket, ev);
   };
@@ -150,6 +152,7 @@ function createWebsocket(): WebSocket {
 try {
   socketStore = createWebsocket();
 } catch (e) {
+  document.body.innerText = e;
   console.log("failed to create socket", e);
 }
 
@@ -197,6 +200,10 @@ function handleActionReport(msg: ServerMessageServerActionReported) {
 
 function handleAuthenticated(msg: ServerMessageAuthenticated) {
   console.log("Authenticated");
+
+  sendSocketMessage({
+    type: ClientMessageType.RequestObjects,
+  });
 }
 
 function handleServerError(msg: ServerMessageError) {
@@ -267,7 +274,10 @@ export function moveObjectLocal(data: ObjectServerActionMoveObject) {
       ...canvasState,
       objects: canvasState.objects.map((object) => {
         if (object.id === data.id) {
-          object.localPosition.set(data.position);
+          object.localPosition.set(data.position, {
+            delay: 10,
+            duration: 100,
+          });
           return {
             ...object,
             remotePosition: data.position,
