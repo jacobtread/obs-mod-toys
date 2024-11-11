@@ -1,6 +1,8 @@
 <script lang="ts">
   import { clearObjects, createObject, ObjectType } from "./canvas-store";
   import FilePicker from "./FilePicker.svelte";
+  import ObjectsList from "./ObjectsList.svelte";
+  import { canvasState } from "./canvas-store";
 
   const onPickFile = (url: string) => {
     createObject(
@@ -21,6 +23,8 @@
     clearObjects();
   };
 </script>
+
+<ObjectsList objects={$canvasState.objects}></ObjectsList>
 
 <button onclick={onClear}>Clear</button>
 <FilePicker {onPickFile} />
