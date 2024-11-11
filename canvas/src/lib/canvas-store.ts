@@ -230,14 +230,14 @@ function randomUUID(): string {
 export function createObject(object: Object, initial_position: Position) {
   const id = randomUUID();
 
+  createObjectLocal(id, object, initial_position);
+
   sendServerAction({
     type: ObjectServerActionType.CreateObject,
     id,
     object,
     initial_position,
   });
-
-  createObjectLocal(id, object, initial_position);
 }
 export function createObjectLocal(
   id: string,
@@ -258,26 +258,37 @@ export function createObjectLocal(
   }));
 }
 
-export function moveObject(data: ObjectServerActionMoveObject) {
+export function moveObject(
+  data: ObjectServerActionMoveObject,
+  immediate: boolean = false
+) {
+  moveObjectLocal(data, immediate);
+
   sendServerAction({
     type: ObjectServerActionType.MoveObject,
     id: data.id,
     position: data.position,
   });
-
-  moveObjectLocal(data);
 }
 
-export function moveObjectLocal(data: ObjectServerActionMoveObject) {
+export function moveObjectLocal(
+  data: ObjectServerActionMoveObject,
+  immediate: boolean = false
+) {
   canvasState.update((canvasState) => {
     return {
       ...canvasState,
       objects: canvasState.objects.map((object) => {
         if (object.id === data.id) {
-          object.localPosition.set(data.position, {
-            delay: 10,
-            duration: 100,
-          });
+          object.localPosition.set(
+            data.position,
+            immediate
+              ? { delay: 0, duration: 0 }
+              : {
+                  delay: 0,
+                  duration: 100,
+                }
+          );
           return {
             ...object,
             remotePosition: data.position,
@@ -292,11 +303,12 @@ export function moveObjectLocal(data: ObjectServerActionMoveObject) {
 }
 
 export function removeObject(data: ObjectServerActionRemoveObject) {
+  removeObjectLocal(data);
+
   sendServerAction({
     type: ObjectServerActionType.RemoveObject,
     id: data.id,
   });
-  removeObjectLocal(data);
 }
 export function removeObjectLocal(data: ObjectServerActionRemoveObject) {
   canvasState.update((canvasState) => ({
@@ -306,10 +318,11 @@ export function removeObjectLocal(data: ObjectServerActionRemoveObject) {
 }
 
 export function clearObjects() {
+  clearObjectsLocal();
+
   sendServerAction({
     type: ObjectServerActionType.ClearObjects,
   });
-  clearObjectsLocal();
 }
 
 export function clearObjectsLocal() {

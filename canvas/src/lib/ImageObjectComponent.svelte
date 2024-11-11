@@ -33,12 +33,15 @@
   );
 
   // Debounced function to update the position on the backend
-  const moveObjectDebounced = throttle(async () => {
+  const moveObjectThrottled = throttle(async (immediate: boolean = false) => {
     try {
-      await moveObject({
-        id: localObject.id,
-        position: { x: dragX, y: dragY },
-      });
+      await moveObject(
+        {
+          id: localObject.id,
+          position: { x: dragX, y: dragY },
+        },
+        immediate
+      );
     } catch (error) {
       console.error("failed to update position", error);
     }
@@ -47,8 +50,8 @@
   // Start dragging
   const startDrag = (event: MouseEvent) => {
     event.preventDefault();
-    offsetX = event.clientX - x;
-    offsetY = event.clientY - y;
+    offsetX = event.clientX - $localPosition.x;
+    offsetY = event.clientY - $localPosition.y;
 
     isDragging = true;
 
@@ -61,21 +64,18 @@
     if (isDragging) {
       dragX = event.clientX - offsetX;
       dragY = event.clientY - offsetY;
-      moveObjectDebounced();
+      moveObjectThrottled();
     }
   };
 
   // Stop dragging
   const stopDrag = () => {
-    // Update the tweened position immediately
-    localPosition.set({ x: dragX, y: dragY }, { delay: 0, duration: 0 });
-
     isDragging = false;
     document.removeEventListener("mousemove", onDrag);
     document.removeEventListener("mouseup", stopDrag);
 
-    moveObjectDebounced.cancel();
-    moveObjectDebounced();
+    moveObjectThrottled.cancel();
+    moveObjectThrottled(true);
   };
 
   $effect(() => {});
