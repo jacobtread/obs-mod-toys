@@ -1,7 +1,6 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use axum::{
-    body::Bytes,
     extract::{
         ws::{self, WebSocket},
         WebSocketUpgrade,
@@ -99,7 +98,7 @@ async fn handle_socket_msg(
 
             // TODO: perform authentication
         }
-        WebsocketClientMessage::ServerAction(object_server_action) => {
+        WebsocketClientMessage::ServerAction { action } => {
             if !socket_state.authenticated {
                 let msg = serde_json::to_string(&WebsocketServerMessage::Error {
                     message: "not authenticated".to_string(),
@@ -110,7 +109,7 @@ async fn handle_socket_msg(
 
             _ = object_server_handle.tx.send(ObjectServerMessage::Action {
                 session_id: socket_state.session_id,
-                action: object_server_action,
+                action,
             });
         }
     }
@@ -130,11 +129,12 @@ async fn handle_socket_broadcast(
                 return Ok(());
             }
 
-            let msg = serde_json::to_string(&WebsocketServerMessage::ServerActionReported(action))?;
+            let msg =
+                serde_json::to_string(&WebsocketServerMessage::ServerActionReported { action })?;
             socket.send(ws::Message::Text(msg)).await?;
         }
         BroadcastMessage::Objects(objects) => {
-            let msg = serde_json::to_string(&WebsocketServerMessage::Objects(objects))?;
+            let msg = serde_json::to_string(&WebsocketServerMessage::Objects { objects })?;
             socket.send(ws::Message::Text(msg)).await?;
         }
     }
