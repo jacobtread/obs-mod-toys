@@ -152,7 +152,6 @@ function createWebsocket(): WebSocket {
 try {
   socketStore = createWebsocket();
 } catch (e) {
-  document.body.innerText = e;
   console.log("failed to create socket", e);
 }
 
