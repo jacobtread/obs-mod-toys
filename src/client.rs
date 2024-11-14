@@ -9,13 +9,14 @@ use crate::{
 };
 
 pub async fn handle_socket(mut socket: WebSocket, mut object_server_handle: ObjectsActorHandle) {
-    let mut socket_state = WebSocketState {
+    let mut socket_state = WebSocketSession {
         authenticated: false,
         session_id: Uuid::new_v4(),
     };
 
     loop {
         select! {
+            // Handle messages from the web socket connection
             msg = socket.recv() => {
 
                 let msg = match msg {
@@ -28,6 +29,7 @@ pub async fn handle_socket(mut socket: WebSocket, mut object_server_handle: Obje
                 }
             },
 
+            // Handle messages to broadcast to the web socket
             broadcast_msg = object_server_handle.rx.recv() => {
                 if let Ok(broadcast_msg) = broadcast_msg {
                     if let Err(_err) = handle_socket_broadcast(&mut socket, &mut socket_state, broadcast_msg).await {
@@ -39,17 +41,21 @@ pub async fn handle_socket(mut socket: WebSocket, mut object_server_handle: Obje
     }
 }
 
-pub struct WebSocketState {
+/// Session data for a web socket
+pub struct WebSocketSession {
+    /// Unique ID for the session
     session_id: Uuid,
+    /// Whether the session is authenticated
     authenticated: bool,
 }
 
 async fn handle_socket_msg(
     socket: &mut WebSocket,
-    socket_state: &mut WebSocketState,
+    socket_state: &mut WebSocketSession,
     object_server_handle: &ObjectsActorHandle,
     msg: axum::extract::ws::Message,
 ) -> anyhow::Result<()> {
+    // Parse the incoming message
     let msg: WebsocketClientMessage = match msg {
         axum::extract::ws::Message::Text(value) => serde_json::from_str(&value)?,
         axum::extract::ws::Message::Binary(value) => serde_json::from_slice(&value)?,
@@ -102,7 +108,7 @@ async fn handle_socket_msg(
 
 async fn handle_socket_broadcast(
     socket: &mut WebSocket,
-    socket_state: &mut WebSocketState,
+    socket_state: &mut WebSocketSession,
     msg: BroadcastMessage,
 ) -> anyhow::Result<()> {
     match msg {
