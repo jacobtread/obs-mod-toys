@@ -8,8 +8,9 @@ use crate::{
     object::DefinedObjectWithId,
 };
 
-pub async fn handle_socket(mut socket: WebSocket, mut object_server_handle: ObjectsActorHandle) {
+pub async fn handle_socket(socket: WebSocket, mut object_server_handle: ObjectsActorHandle) {
     let mut socket_state = WebSocketSession {
+        socket,
         authenticated: false,
         session_id: Uuid::new_v4(),
     };
@@ -17,14 +18,14 @@ pub async fn handle_socket(mut socket: WebSocket, mut object_server_handle: Obje
     loop {
         select! {
             // Handle messages from the web socket connection
-            msg = socket.recv() => {
+            msg = socket_state.socket.recv() => {
 
                 let msg = match msg {
                     Some(Ok(msg))=> msg,
                     _ => return,
                 };
 
-                if let Err(_err) = handle_socket_msg(&mut socket, &mut socket_state, &object_server_handle, msg).await {
+                if let Err(_err) = handle_socket_msg(&mut socket_state, &object_server_handle, msg).await {
                     return;
                 }
             },
@@ -32,7 +33,7 @@ pub async fn handle_socket(mut socket: WebSocket, mut object_server_handle: Obje
             // Handle messages to broadcast to the web socket
             broadcast_msg = object_server_handle.rx.recv() => {
                 if let Ok(broadcast_msg) = broadcast_msg {
-                    if let Err(_err) = handle_socket_broadcast(&mut socket, &mut socket_state, broadcast_msg).await {
+                    if let Err(_err) = handle_socket_broadcast(&mut socket_state, broadcast_msg).await {
                         return;
                     }
                 }
@@ -43,6 +44,7 @@ pub async fn handle_socket(mut socket: WebSocket, mut object_server_handle: Obje
 
 /// Session data for a web socket
 pub struct WebSocketSession {
+    socket: WebSocket,
     /// Unique ID for the session
     session_id: Uuid,
     /// Whether the session is authenticated
@@ -50,7 +52,6 @@ pub struct WebSocketSession {
 }
 
 async fn handle_socket_msg(
-    socket: &mut WebSocket,
     socket_state: &mut WebSocketSession,
     object_server_handle: &ObjectsActorHandle,
     msg: axum::extract::ws::Message,
@@ -70,7 +71,7 @@ async fn handle_socket_msg(
             socket_state.authenticated = true;
 
             let msg = serde_json::to_string(&WebsocketServerMessage::Authenticated)?;
-            socket.send(ws::Message::Text(msg)).await?;
+            socket_state.socket.send(ws::Message::Text(msg)).await?;
 
             // TODO: perform authentication
         }
@@ -79,7 +80,7 @@ async fn handle_socket_msg(
                 let msg = serde_json::to_string(&WebsocketServerMessage::Error {
                     message: "not authenticated".to_string(),
                 })?;
-                socket.send(ws::Message::Text(msg)).await?;
+                socket_state.socket.send(ws::Message::Text(msg)).await?;
                 return Ok(());
             }
 
@@ -99,7 +100,7 @@ async fn handle_socket_msg(
                 .await?;
             let objects = rx.await?;
             let msg = serde_json::to_string(&WebsocketServerMessage::Objects { objects })?;
-            socket.send(ws::Message::Text(msg)).await?;
+            socket_state.socket.send(ws::Message::Text(msg)).await?;
         }
     }
 
@@ -107,7 +108,6 @@ async fn handle_socket_msg(
 }
 
 async fn handle_socket_broadcast(
-    socket: &mut WebSocket,
     socket_state: &mut WebSocketSession,
     msg: BroadcastMessage,
 ) -> anyhow::Result<()> {
@@ -120,7 +120,7 @@ async fn handle_socket_broadcast(
 
             let msg =
                 serde_json::to_string(&WebsocketServerMessage::ServerActionReported { action })?;
-            socket.send(ws::Message::Text(msg)).await?;
+            socket_state.socket.send(ws::Message::Text(msg)).await?;
         }
     }
 
